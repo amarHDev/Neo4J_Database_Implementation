@@ -1,0 +1,31 @@
+id,Name,id_fils,id_parents
+1,Frédéric,1,2
+2,Louis     ,2,0
+3,Fabien ,3,1
+4,Armance,4,1
+5,Quentin ,5,3
+6,Henriette,6,3
+7,Simon,7,2
+8,Ariane,8,7
+9,Mireille ,9,8
+10,Nadia    ,10,5
+11,Florie ,11,5
+12,Gontran,12,5
+13,Amar,13,5
+14,Armand ,14,10
+15,Althée,15,10
+16,Hatice,16,10
+17,Agénor,17,2
+18,Gladys,18,2
+19,Blandine ,19,18
+20,Serge,20,18
+21,Romuald,21,19
+22,Nassima,22,20
+23,Madjid,23,12
+24,Stonny,24,12
+25,Inès,25,12
+26,Angeline ,26,24
+27,Abdellah,27,24
+28,Ali,28,26
+29,Fatiha,29,6
+30,Jean,30,6

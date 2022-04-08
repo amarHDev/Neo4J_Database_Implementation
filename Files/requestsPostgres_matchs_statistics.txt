@@ -1,0 +1,63 @@
+
+
+// queries to create tables, primary keys, foreign keys
+
+CREATE TABLE teams (
+    id        varchar(40) CONSTRAINT team_key PRIMARY KEY,
+    team_api_id	varchar(40) CONSTRAINT ,
+    team_short_name       varchar(40),
+    team_long_name    varchar(40)
+);
+
+CREATE TABLE countries (
+    id        varchar(40) CONSTRAINT country_key PRIMARY KEY,
+    name    varchar(40)
+);
+
+CREATE TABLE leagues (
+    id        varchar(40) CONSTRAINT league_key PRIMARY KEY,
+    country_id       varchar(40) REFERENCES leagues(id),
+    name    varchar(40)
+);
+
+ALTER TABLE teams ADD CONSTRAINT unique_api_key UNIQUE (team_api_id);
+
+CREATE TABLE matchs (
+	id        varchar(40) CONSTRAINT match_key PRIMARY KEY,
+	country_id       varchar(40) REFERENCES countries(id),
+	league_id    varchar(40) REFERENCES leagues(id),
+	season       varchar(40),
+	date       date,
+	home_team_goal       int,
+	away_team_goal       int,
+	home_team_api_id	varchar(40) REFERENCES teams(team_api_id),
+	away_team_api_id	varchar(40) REFERENCES teams(team_api_id)
+);
+
+
+
+
+-- import all tables:
+
+COPY countries FROM '/home/abdel/Documents/neo4j/countries_dataset.csv' WITH (FORMAT csv);
+
+COPY matchs FROM '/home/abdel/Documents/neo4j/matchs_dataset.csv' WITH (FORMAT csv);
+
+COPY teams FROM '/home/abdel/Documents/neo4j/teams_dataset.csv' WITH (FORMAT csv);
+
+COPY leagues FROM '/home/abdel/Documents/neo4j/leagues_dataset.csv' WITH (FORMAT csv);
+
+
+
+
+-- Utils : 
+
+drop table matchs cascade;
+
+
+
+
+
+
+
+

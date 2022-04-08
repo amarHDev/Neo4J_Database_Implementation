@@ -1,0 +1,103 @@
+#Constraintes
+CREATE CONSTRAINT ON (matches:Matches) ASSERT matches.id_match IS UNIQUE;
+CREATE CONSTRAINT ON (team:Team) ASSERT team.id_team IS UNIQUE;
+CREATE CONSTRAINT ON (league:League) ASSERT league.id_league IS UNIQUE;
+CREATE CONSTRAINT ON (country:Country) ASSERT country.id_country IS UNIQUE;
+
+
+
+//Insérer les données par lot de 10000 à la fois car toutes les dnnées du dataset ne peut être chargé en mémoire directement 
+:auto USING PERIODIC COMMIT 10000
+
+//Chargement du dataset avec les en-têtes
+LOAD CSV WITH HEADERS FROM 'file:///Match.csv' AS line
+
+//Split la date délimitée des matches par '-' et transmission de la variable de line
+WITH split(line.date,'-') as date,line
+
+//Affectation  d'alias pour l'index 1 du tableau qui représente une année, le 2 représentant un mois et le 3 représentant un jour 
+//(on a utilisé substring pour garder que le jour sans les 00:00:00 à la fin) 
+WITH date[0] as year, date[1] as month, SUBSTRING(date[2],0,2) as day,line
+
+//Collecte de toutes les données de matches pertinentes dans une liste avec la date dévisée en morceaux gérables 
+WITH collect([day,month,year,line.stage,line.home_team_api_id,line.away_team_api_id,line.home_team_goal,line.away_team_goal,
+line.match_api_id,line.season,line.league_id,line.country_id]) as data
+
+//Transformation de la liste en lignes individuelles
+UNWIND data as allData 
+
+//Et creation d'un tableau avec tout les numéros des mois (2 caractères)
+with allData, ["01","02","03","04","05","06","07","08","09","10","11","12"] as allMonthNames 
+
+//Fusion des noeuds leurs données en extrayants les données de la liste au dessus crée: (Si les noeud existent déjà, 
+//ils ne seront pas crées à nouveau)
+MERGE (matches:Matches{id_match:allData[8],
+season:allData[9], day:toInteger(allData[0]), 
+month:toInteger([i IN RANGE(0,SIZE(allMonthNames)-1) WHERE allMonthNames[i] = allData[1]][0]+1),
+year:allData[2],
+stage:allData[3],
+homeTeam:allData[4],
+awayTeam:allData[5],
+homeTeamGoal:allData[6], 
+awayTeamGoal:allData[7],
+league:allData[10],
+country:allData[11]})
+WITH allData as allData, matches as matches 
+
+//Fusionner également les deux noeuds d'équipes relatifs à ce match (si des noeuds existent déjà, il ne seront pas crées à nouveau) 
+MERGE (team1:Team{id_team:allData[4]})
+MERGE (team2:Team{id_team:allData[5]}) 
+
+//Fusionner les deux noeuds des leagues relatifs à ce match (si des noeuds existent déjà, il ne seront pas crées à nouveau)
+MERGE (league:League{id_league:allData[10]})
+
+//Fusionner les deux noeuds des pays relatifs à ce match (si des noeuds existent déjà, il ne seront pas crées à nouveau)
+MERGE (country:Country{id_country:allData[11]})
+
+//Définition des variables qui prennent en charge le nombre de but marquées pour les équipe à domicile et la variable qui prend le 
+//nombre de but marquées à l'extérieurs
+WITH toInteger(allData[6]) AS goalsScoredFullTimeHome,toInteger(allData[7]) AS goalsScoredFullTimeAway, matches AS matches, 
+team1 AS team1, team2 AS team2, league AS league, country AS country
+
+//Les relationship suivantes entre les noeuds sont crées, leurs type c'est soit (WIN,LOST,EQUAL1,EQUAL2) 
+//en fonction des variables de score(buts) qui ont été créer précédement
+//Les but marquées à domicile et à l'extérieurs sont stockés respectivement dans la relation de chaque équipe avec le match comme
+// indiqué dans la conception que l'ont détaillera plus tard
+FOREACH (allData in CASE WHEN (goalsScoredFullTimeHome > goalsScoredFullTimeAway) THEN [1] ELSE [] END |
+ MERGE (team1)-[r1:WON{goalsScoredFullTime:goalsScoredFullTimeHome}]->(matches)<-[r2:LOST{goalsScoredFullTime:goalsScoredFullTimeAway}]-(team2))
+
+FOREACH (allData in CASE WHEN (goalsScoredFullTimeHome < goalsScoredFullTimeAway) THEN [1] ELSE [] END |
+ MERGE (team1)-[r1:LOST{goalsScoredFullTime:goalsScoredFullTimeHome}]->(matches)<-[r2:WON{goalsScoredFullTime:goalsScoredFullTimeAway}]-(team2)) 
+
+FOREACH (allData in CASE WHEN (goalsScoredFullTimeHome = goalsScoredFullTimeAway) THEN [1] ELSE [] END |
+ MERGE (team1)-[r1:EQUAL2{goalsScoredFullTime:goalsScoredFullTimeHome}]->(matches)<-[r2:EQUAL1{goalsScoredFullTime:goalsScoredFullTimeAway}]-(team2))
+
+//On définit aussi les relations entre les matches et les leagues et entre les matches et les pays
+MERGE (matches)-[r3:DISPUTED_IN]->(league)
+MERGE (matches)-[r4:DISPUTED_INTO]->(country)
+
+
+
+//Insert longname team proprety for all teams
+LOAD CSV WITH HEADERS FROM 'file:///Team.csv' AS line
+MERGE (team:Team{id_team:line.team_api_id})
+SET team.long_name = line.team_long_name
+return team
+
+//Insert shortname team proprety for all teams
+LOAD CSV WITH HEADERS FROM 'file:///Team.csv' AS line
+MERGE (team:Team{id_team:line.team_api_id})
+SET team.short_name = line.team_short_name
+return team
+
+//Insert country names
+LOAD CSV WITH HEADERS FROM 'file:///Country.csv' AS line
+MERGE (country:Country{id_country:line.id})
+SET country.country_name = line.name
+return country
+
+//Insert League names
+LOAD CSV WITH HEADERS FROM 'file:///League.csv' AS line
+MERGE (league:League{id_league:line.country_id})
+SET league.league_name = line.name
+return league

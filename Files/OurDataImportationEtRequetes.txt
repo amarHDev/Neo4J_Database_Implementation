@@ -1,0 +1,26 @@
+//Importation des données
+
+WITH 'file:///ourData.csv' AS url
+LOAD CSV WITH HEADERS FROM url AS line
+MERGE (personne:Personne{id_personne:line.id})
+ON CREATE SET personne.nom = line.Name, personne.id_fils = line.id_fils,
+personne.id_parents = line.id_parents;
+
+
+MATCH (parent:Personne),(fils:Personne)
+WHERE parent.id_parents = fils.id_fils
+CREATE (fils)-[r:PARENT_OF]->(parent)
+
+//Requête 1: Affichage de 20 noeuds et leurs relationships
+MATCH (personne:Personne) 
+RETURN personne 
+LIMIT 20
+
+//Requête 2: Affiche tout les descendant d'un noeud
+MATCH path = (personSearch:Personne{nom:'Quentin'})-[r:PARENT_OF*..10]->(autrePersonne:Personne) 
+RETURN path
+
+//Requête 3: Affichage du nombre de générations entre 2 personnes (Armand) et (Louis)
+MATCH path = (personne:Personne)-[r:PARENT_OF*1..10]->(predecesseur:Personne) 
+WHERE personne.nom ='Armand', predecesseur.nom = 'Louis'
+RETURN lenght(path);

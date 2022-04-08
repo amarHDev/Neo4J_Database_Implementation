@@ -1,0 +1,48 @@
+
+
+
+CREATE TABLE players (
+    playerUri        varchar(200) CONSTRAINT player_key PRIMARY KEY,
+    playerName        varchar(40),
+    playerPosition        varchar(40),
+    playerAge        varchar(40),
+    playerImage        varchar(200),
+    playerNationality        varchar(40)
+
+);
+
+
+CREATE TABLE clubs (
+    clubUri        varchar(200) CONSTRAINT club_key PRIMARY KEY,
+    clubName       varchar(40),
+    clubCountry    varchar(40)
+);
+
+
+
+CREATE TABLE transfers (
+    transferUri     varchar(200) CONSTRAINT transfer_key PRIMARY KEY,
+    playerUri   varchar(200) REFERENCES players (playerUri),
+    season  varchar(40),
+    sellerClubUri   varchar(200) REFERENCES clubs (clubUri),
+    buyerClubUri   varchar(200) REFERENCES clubs (clubUri),
+    transferFee     varchar(40),
+    timestamp date
+);
+
+-- list all tables:
+/d
+
+COPY players FROM '/home/abdel/Documents/neo4j/players_dataset.csv' WITH (FORMAT csv);
+
+COPY transfers FROM '/home/abdel/Documents/neo4j/transfers_dataset.csv' WITH (FORMAT csv);
+
+COPY clubs FROM '/home/abdel/Documents/neo4j/clubs_dataset.csv' WITH (FORMAT csv);
+
+drop table clubs cascade;
+
+select * from players where playerUri = '/douglas-costa/profil/spieler/75615';
+
+EXPLAIN ANALYSE 
+SELECT  * 
+FROM    demotable;

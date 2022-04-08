@@ -1,0 +1,143 @@
+//Requête 1 : Affichage du club avec le plus de victoire en Janvier
+//La primière requête est pour avoir la valeur maximal de victoire
+MATCH (team:Team)-[r:WON]->(matches:Matches{month:0o1})
+//Compter les victoires
+WITH team, COUNT(r) as count
+//Garder la valeur maximale 
+WITH MAX(count) as max
+//Nouvelle requête 
+MATCH  (team:Team)-[r:WON]->(matches:Matches{month:0o1})
+WITH team, COUNT(r) as count, max
+//Ne garder que les résultats dont le nombre de victoires est égal au max 
+WHERE count = max
+RETURN team.long_name as `Long Team Name`, team.short_name as `Short Team Name`, count as `Goals On January`
+
+
+
+//Requête 2 : Affichage des top 5 équipes qui à marqué le plus de but
+//Correspondre tous les matchs et les équipes 
+MATCH (team:Team)-[r]->(matches:Matches)
+//retourner le nom de l'équipe et la somme totale des but de chaque équipe 
+//Le score total est une somme des buts marqué présent dans les relationship avec l'attribut "goalsScoredFullTime"
+WITH sum(r.goalsScoredFullTime) AS allGoals, team AS team
+RETURN team.long_name AS `Team Name`, allGoals AS `All Goals`
+//Ordonner par rapport au nombre de buts marqué du score le plus élevè au plus bas et limiter les résultats à 5 
+ORDER BY allGoals DESC LIMIT 5 
+
+
+
+//Requête 3 : Affichage des 5 top équipes avec la pire défense. 
+//Faire correspondre les matchs et les deux équipes en même temps connectées à ce match 
+MATCH (team1:Team)-[r1]->(matches:Matches)<-[r2]-(team2:Team)
+//Puisque nous voulons afficher la pire défense, c'est-à-dire les équipes qui ont reçu le plus de buts 
+//nous devons additionner les buts de la team2 qui résident dans r2 
+//mais nous montrerons le nom de la team1 
+WITH sum(r2.goalsScoredFullTime) AS allGoals, team1 AS team1, team2 AS team2
+RETURN team1.long_name AS `Team Name`, allGoals AS `All Goals`
+ORDER BY allGoals DESC LIMIT 5  
+
+
+
+//Requête 4 : Faire correspondre toutes les équipes et tous les matchs 
+//(une équipe à la fois) et n'obtenir le nombre de points des victoires et des nuls 
+//des matches des 10 première équipes (avec le plus grand score) à la season 2015/2016
+MATCH
+(team:Team)-[r:WON|EQUAL1|EQUAL2]->(matches:Matches)
+//collecter les types des relations rassemblées dans un tableau 
+//et transmettre également le nom de l'équipe 
+WITH collect(type(r)) as matchResult, team.long_name as teamName, matches.season as season
+//parcourir le tableau des types de relations 
+WHERE matches.season ='2015/2016'
+WITH reduce(data = {points: 0, teamName: teamName}, rel IN matchResult |
+  //quand une victoire est trouvée 
+  CASE WHEN rel = "WON"
+  THEN {
+    //augmenter la variable "points" de 3 
+    points: data.points + 3
+  }
+  ELSE {
+  //si (EQUAL1 ou EQUAL2) est trouvé augmenter la variable "points" de 1
+    points: data.points + 1
+  }
+  END
+  ) AS result, teamName, season
+  //Construire le tableau
+UNWIND result.points as points
+RETURN points, teamName ,season
+ORDER BY points DESC 
+LIMIT 10
+
+
+
+//----------------- non ---------Requête 5 : Obtenir tous les matchs et équipes (une équipe à la fois) 
+MATCH (team:Team)-[r]->(matches:Matches)
+
+//Calculer la somme totale des scores à la fin du temps
+//tous les buts marqués par l'équipe à la fin du match, existent dans les relations
+RETURN team.name AS `Team Name`, sum(r.goalsScoredFullTime) AS allGoals
+ORDER BY allGoals DESC LIMIT 5
+
+
+//Requête 5 : Afficher les équipes qui ont subit des défaites avec le score le plus bas 
+//La première requête consiste uniquement à obtenir la valeur maximale des pertes 
+MATCH (team:Team)-[r:LOST]->(matches:Matches)
+
+//Compter les victoires 
+WITH team, COUNT(r) as count
+
+//Garder la valeur maximale 
+WITH MAX(count) as max
+
+//Nouvelle requête
+MATCH (team:Team)-[r:LOST]->(matches:Matches)
+WITH team, COUNT(r) as count, max
+//Ne garder que les résultats dont le nombre de pertes est égal au max 
+WHERE count = max
+RETURN team.long_name as `Team Name`, count as `Losses`
+
+
+//Requête 6: Afficher l'équpe avec le plus de victoire consécutives 
+MATCH
+
+//obtenir les victoires, les défaites et les nuls de chaque équipe 
+(team:Team)-[r:WON|LOST|EQUAL1|EQUAL2]->(matches:Matches)
+
+//traiter les types de relations, transmettre le nom et
+//créer un tableau à partir du mois et du jour (les deux nombres)
+// cela est nécessaire car les résultats DOIVENT être classés en fonction de la date 
+WITH type(r) as matchResult, team.long_name as teamName, collect([matches.month, matches.day]) as list
+
+//créer une liste de dates (mois , moisJour) 
+UNWIND list AS datesList
+
+//transmettre les variables pour un traitement ultérieur 
+WITH teamName, matchResult, datesList
+
+//Ordonnée tout par les dates
+ORDER BY datesList
+
+//REDUCE effectuera une action pour chaque élément de la liste des types de relations 
+RETURN teamName, REDUCE(s = {bestStreak: 0, currentStreak: 0}, result IN COLLECT(matchResult) |
+//if WON is found
+  CASE WHEN result = "WON"
+    THEN {
+
+      //la variable bestStreak représente le plus grand nombre de victoires consécutives pour une équipe, tout au long de la boucle
+       //le currentStreak compte le nombre de victoires consécutives entre les dates
+       //une fois que le currentStreak + 1 est plus grand que le score élevé précédent, le meilleurStreak est mis à jour avec le nouveau score élevé
+       //sinon ça reste pareil 
+      bestStreak: CASE WHEN s.bestStreak < s.currentStreak + 1 THEN s.currentStreak + 1 ELSE s.bestStreak END,
+      currentStreak: s.currentStreak + 1
+    }
+
+    //si c'est autre chose qu'une victoire, bestStreak est enregistré et la séquence actuelle est annulée car cette séquence est interrompue 
+    ELSE {bestStreak: s.bestStreak, currentStreak: 0}
+  END
+
+  //Return le bestStreak
+  //ordonée par lui et limiter par 1 pour obtenir une seul équipe 
+  ).bestStreak AS result
+  ORDER BY result DESC LIMIT 1;
+  
+  
+ 
